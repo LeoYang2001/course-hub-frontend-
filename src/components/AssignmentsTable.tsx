@@ -38,6 +38,36 @@ const AssignmentsTable: React.FC<AssignmentsTableProps> = ({ search = "", sortBy
   const assignments = useSelector((state: RootState) => state.assignmentList.assignments) as Assignment[];
   const courseList = useSelector((state: RootState) => state.courses.courseList);
 
+  // Sorting state
+  const [sortColumn, setSortColumn] = useState<string>('due');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  // Sorting handler
+  function handleSort(col: string) {
+    if (sortColumn === col) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(col);
+      setSortDirection('asc');
+    }
+  }
+
+  // Get scheduled assignment IDs from localStorage
+  const [scheduledIds, setScheduledIds] = useState<number[]>([]);
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('scheduled_assignments');
+      if (stored) {
+        const arr = JSON.parse(stored);
+        if (Array.isArray(arr)) {
+          setScheduledIds(arr.map(Number));
+        }
+      }
+    } catch (e) {
+      setScheduledIds([]);
+    }
+  }, []);
+
   // Filter by search and class
   let filteredAssignments = assignments.filter(a => {
     const course = courseList.find(c => String(c.id) === String(a.course_id));
@@ -49,21 +79,58 @@ const AssignmentsTable: React.FC<AssignmentsTableProps> = ({ search = "", sortBy
   });
 
   // Sort
-  if (sortBy === "due") {
-    filteredAssignments = filteredAssignments.sort((a, b) => {
-      const aDue = a.due_at ? new Date(a.due_at).getTime() : Infinity;
-      const bDue = b.due_at ? new Date(b.due_at).getTime() : Infinity;
-      return aDue - bDue;
-    });
-  } else if (sortBy === "class") {
-    filteredAssignments = filteredAssignments.sort((a, b) => {
-      const courseA = courseList.find(c => String(c.id) === String(a.course_id));
-      const courseB = courseList.find(c => String(c.id) === String(b.course_id));
-      const nameA = courseA ? courseA.name : "";
-      const nameB = courseB ? courseB.name : "";
-      return nameA.localeCompare(nameB);
-    });
-  }
+  filteredAssignments = [...filteredAssignments];
+  filteredAssignments.sort((a, b) => {
+    let valA, valB;
+    switch (sortColumn) {
+      case 'name':
+        valA = a.name || '';
+        valB = b.name || '';
+        break;
+      case 'course':
+        valA = courseList.find(c => String(c.id) === String(a.course_id))?.name || '';
+        valB = courseList.find(c => String(c.id) === String(b.course_id))?.name || '';
+        break;
+      case 'created':
+        valA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        valB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        break;
+      case 'due':
+        valA = a.due_at ? new Date(a.due_at).getTime() : Infinity;
+        valB = b.due_at ? new Date(b.due_at).getTime() : Infinity;
+        break;
+      case 'points':
+        valA = a.points_possible || 0;
+        valB = b.points_possible || 0;
+        break;
+      case 'grade':
+        // If you have a different property for grade, use it here. Otherwise, default to 0.
+        valA = 0;
+        valB = 0;
+        break;
+      case 'type':
+        valA = a.name || '';
+        valB = b.name || '';
+        break;
+      case 'scheduled':
+        valA = scheduledIds.includes(Number(a.id)) ? 1 : 0;
+        valB = scheduledIds.includes(Number(b.id)) ? 1 : 0;
+        break;
+      default:
+        valA = a.due_at ? new Date(a.due_at).getTime() : Infinity;
+        valB = b.due_at ? new Date(b.due_at).getTime() : Infinity;
+    }
+    if (typeof valA === 'string' && typeof valB === 'string') {
+      return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+    } else if (typeof valA === 'number' && typeof valB === 'number') {
+      return sortDirection === 'asc' ? valA - valB : valB - valA;
+    } else {
+      // fallback to string comparison if types mismatch or are not number
+      return sortDirection === 'asc'
+        ? String(valA).localeCompare(String(valB))
+        : String(valB).localeCompare(String(valA));
+    }
+  });
 
   // Pagination logic
   const [page, setPage] = React.useState(1);
@@ -78,37 +145,56 @@ const AssignmentsTable: React.FC<AssignmentsTableProps> = ({ search = "", sortBy
   }, [search, sortBy, classFilter]);
 
   return (
-    <div className="bg-white relative rounded-xl  flex-1 flex shadow-lg border border-[#eee] flex-col p-6">
-     <div className="  overflow-hidden">
-      <table className="min-w-full border-separate border-spacing-y-2">
-        <thead>
-          <tr className="text-left text-gray-700 text-base border-b border-gray-200">
-            <th className="py-3 px-4 font-semibold text-center">Select</th>
-            <th className="py-3 px-4 font-semibold text-center">Name</th>
-            <th className="py-3 px-4 font-semibold text-center">Course</th>
-            <th className="py-3 px-4 font-semibold text-center">Created At</th>
-            <th className="py-3 px-4 font-semibold text-center">Due Date</th>
-            <th className="py-3 px-4 font-semibold text-center">Points</th>
-            <th className="py-3 px-4 font-semibold text-center">Grade</th>
-            <th className="py-3 px-4 font-semibold text-center">Quiz?</th>
-          </tr>
-        </thead>
-        <tbody>
-          {pagedAssignments.map(a => (
-            <AssignmentRow
-              key={a.id}
-              assignment={a}
-              onSelect={onSelectAssignment}
-              selected={selectedAssignments.includes(Number(a.id))}
-            />
-          ))}
-        </tbody>
-      </table>
+    <div className="bg-white relative rounded-xl flex-1 flex shadow-lg border border-[#eee] flex-col p-6">
+      <div className="overflow-x-auto">
+        <table className="min-w-full border-separate border-spacing-y-2">
+          <thead>
+            <tr className="text-left text-gray-700 text-base border-b border-gray-200">
+              <th className="py-3 px-4 font-semibold text-center">Select</th>
+              <th className="py-3 px-4 font-semibold text-center cursor-pointer" onClick={() => handleSort('name')}>
+                Name {sortColumn === 'name' && (sortDirection === 'asc' ? '▲' : '▼')}
+              </th>
+              <th className="py-3 px-4 font-semibold text-center cursor-pointer" onClick={() => handleSort('course')}>
+                Course {sortColumn === 'course' && (sortDirection === 'asc' ? '▲' : '▼')}
+              </th>
+              <th className="py-3 px-4 font-semibold text-center cursor-pointer" onClick={() => handleSort('created')}>
+                Created At {sortColumn === 'created' && (sortDirection === 'asc' ? '▲' : '▼')}
+              </th>
+              <th className="py-3 px-4 font-semibold text-center cursor-pointer" onClick={() => handleSort('due')}>
+                Due Date {sortColumn === 'due' && (sortDirection === 'asc' ? '▲' : '▼')}
+              </th>
+              <th className="py-3 px-4 font-semibold text-center cursor-pointer" onClick={() => handleSort('points')}>
+                Points {sortColumn === 'points' && (sortDirection === 'asc' ? '▲' : '▼')}
+              </th>
+              <th className="py-3 px-4 font-semibold text-center cursor-pointer" onClick={() => handleSort('grade')}>
+                Grade {sortColumn === 'grade' && (sortDirection === 'asc' ? '▲' : '▼')}
+              </th>
+              <th className="py-3 px-4 font-semibold text-center cursor-pointer" onClick={() => handleSort('type')}>
+                Type {sortColumn === 'type' && (sortDirection === 'asc' ? '▲' : '▼')}
+              </th>
+              <th className="py-3 px-4 font-semibold text-center cursor-pointer" onClick={() => handleSort('scheduled')}>
+                Scheduled {sortColumn === 'scheduled' && (sortDirection === 'asc' ? '▲' : '▼')}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {pagedAssignments.map(a => (
+              <AssignmentRow
+                key={a.id}
+                assignment={a}
+                onSelect={onSelectAssignment}
+                selected={selectedAssignments.includes(Number(a.id))}
+                isScheduled={scheduledIds.includes(Number(a.id))}
+                showScheduleButton={!scheduledIds.includes(Number(a.id))}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="w-full flex-1 flex justify-center items-center">
+        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+      </div>
     </div>
-    <div className=" w-full flex-1  flex justify-center items-center">
-      <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-    </div>
-  </div>
   );
 };
 

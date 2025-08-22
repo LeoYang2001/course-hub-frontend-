@@ -3,6 +3,7 @@ import AssignmentsTable from "../components/AssignmentsTable";
 import { useSelector } from "react-redux";
 import type { RootState } from "../store/store";
 import { FaSearch, FaSortAmountDown, FaFilter, FaTimes } from 'react-icons/fa';
+import { dueTimeBaseReminder, handleCustomTimeReminder } from "../apis/scheduleReminder";
 
 const reminderOptions = [
   { label: "A day before", value: 1 },
@@ -37,7 +38,7 @@ const DueTablePage: React.FC = () => {
       id: a.id,
       name: a.name,
       due_date: a.due_at,
-      course_name: course ? course.name : ''
+      course_code: course ? course.course_code : '',
     };
   });
 
@@ -62,23 +63,25 @@ const DueTablePage: React.FC = () => {
   };
 
   // Handle confirm reminder
-  const handleConfirmReminder = () => {
+  const handleConfirmReminder = async () => {
     if (reminderMode === 'days') {
       // Group assignments by reminder time (due date minus reminderDays)
-      const grouped: { [reminderTime: string]: { id: number, name: string, due_date: string }[] } = {};
+      const grouped: { [reminderTime: string]: { id: number, name: string, due_date: string, course_code: string }[] } = {};
       selectedInfo.forEach(a => {
         if (!a.due_date) return;
         const due = new Date(a.due_date);
         const reminder = new Date(due.getTime() - reminderDays * 24 * 60 * 60 * 1000);
         const reminderStr = reminder.toISOString().slice(0, 16); // 'YYYY-MM-DDTHH:mm'
         if (!grouped[reminderStr]) grouped[reminderStr] = [];
-        grouped[reminderStr].push({ id: a.id, name: a.name, due_date: a.due_date });
+        grouped[reminderStr].push({ id: a.id, name: a.name, due_date: a.due_date, course_code: a.course_code });
       });
       console.log('Grouped assignments by reminder time:', grouped);
+      await dueTimeBaseReminder(grouped);
     } else {
       // Group all assignments together with custom reminder date
-      const group = selectedInfo.map(a => ({ id: a.id, name: a.name, due_date: a.due_date, reminder_date: reminderDate }));
+      const group = selectedInfo.map(a => ({ id: a.id, name: a.name, due_date: a.due_date, course_code: a.course_code, reminder_date: reminderDate }));
       console.log('All assignments with custom reminder date:', group);
+      await handleCustomTimeReminder({ assignments: group });
     }
     setShowModal(false);
   };
@@ -243,9 +246,9 @@ const DueTablePage: React.FC = () => {
                   <label className="block mb-2 font-semibold text-gray-700">Pick reminder time:</label>
                   <input
                     type="datetime-local"
-                    className="border rounded px-3 py-2 w-full focus:ring-2 focus:ring-blue-400 focus:border-blue-400 shadow-sm"
                     value={reminderDate}
                     onChange={e => setReminderDate(e.target.value)}
+                    className="border rounded px-3 py-2 w-full focus:ring-2 focus:ring-blue-400 focus:border-blue-400 shadow-sm"
                   />
                 </div>
               )}

@@ -9,9 +9,11 @@ interface AssignmentRowProps {
   assignment: Assignment;
   onSelect?: (id: number) => void;
   selected?: boolean;
+  isScheduled?: boolean;
+  showScheduleButton?: boolean;
 }
 
-function AssignmentRow({ assignment, onSelect, selected = false }: AssignmentRowProps) {
+function AssignmentRow({ assignment, onSelect, selected = false, isScheduled = false, showScheduleButton = false }: AssignmentRowProps) {
   const courseList = useSelector((state: RootState) => state.courses.courseList);
   const course = courseList.find(c => String(c.id) === String(assignment.course_id));
   const [grade, setGrade] = useState<string | number | null>(null);
@@ -75,7 +77,9 @@ function AssignmentRow({ assignment, onSelect, selected = false }: AssignmentRow
       <td className="py-2 px-2 text-base font-medium text-gray-900 text-center">{assignment.name}</td>
       <td className="py-2 px-2 text-base font-semibold text-blue-700 text-center">{course ? course.name : assignment.course_id}</td>
       <td className="py-2 px-2 text-sm font-normal text-gray-500 text-center">{assignment.created_at ? new Date(assignment.created_at).toLocaleString() : "—"}</td>
-      <td className="py-2 px-2 text-sm font-normal text-gray-500 text-center">{assignment.due_at ? new Date(assignment.due_at).toLocaleString() : "—"}</td>
+      <td className="py-2 px-2 text-sm font-bold text-center" style={{color: '#d97706', background: '#fffbe6'}}>
+        {assignment.due_at ? <span title="Due Date" className="inline-flex items-center gap-1"><span role="img" aria-label="due" style={{fontWeight:'bold'}}>⏰</span> {new Date(assignment.due_at).toLocaleString()}</span> : "—"}
+      </td>
       <td className="py-2 px-2 text-base font-bold text-green-700 text-center">{assignment.points_possible}</td>
       <td className="py-2 px-2 text-base font-bold text-purple-700 text-center">
         {loading ? <span className="text-blue-500">Loading...</span> : grade !== null ? grade : "—"}
@@ -105,6 +109,10 @@ function AssignmentRow({ assignment, onSelect, selected = false }: AssignmentRow
           </span>
         )}
       </td>
+      <td className="py-2 px-2 text-center">
+        {isScheduled ? <span title="Scheduled" className="text-green-600 font-bold">✓</span> : "—"}
+      </td>
+     
     </tr>
   );
 }

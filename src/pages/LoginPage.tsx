@@ -63,6 +63,8 @@ const OnboardingPage: React.FC = () => {
     return "";
   };
 
+
+
   const handleConfiguration = (apiKey: string, school_base_url: string, term: string) => {
     const config = { apiKey, school_base_url, term };
     localStorage.setItem("coursehub_config", JSON.stringify(config));
